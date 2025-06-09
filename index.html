@@ -17,11 +17,11 @@
 
     .container {
       background: white;
-      padding: 2rem 3rem;
+      padding: 2rem 2.5rem;
       border-radius: 12px;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
       text-align: center;
-      width: 340px;
+      width: 380px;
     }
 
     h2 {
@@ -64,6 +64,12 @@
       background-color: #f7faff;
     }
 
+    .file-name {
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: 0.4rem;
+    }
+
     button {
       background-color: #007bff;
       color: white;
@@ -100,10 +106,66 @@
       }
     }
 
-    .file-name {
+    .history {
+      margin-top: 2rem;
+      text-align: left;
+    }
+
+    .history h3 {
+      font-size: 1rem;
+      margin-bottom: 0.6rem;
+      color: #444;
+    }
+
+    .history ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .history li {
+      background: #f8f9fa;
+      padding: 0.6rem 0.8rem;
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
       font-size: 0.9rem;
-      color: #666;
-      margin-top: 0.4rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .history small {
+      color: #777;
+      font-size: 0.75rem;
+    }
+
+    .history-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .history a {
+      text-decoration: none;
+      color: #007bff;
+      font-size: 0.85rem;
+    }
+
+    .history a:hover {
+      text-decoration: underline;
+    }
+
+    .delete-btn {
+      background: none;
+      border: none;
+      color: red;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    .delete-btn:hover {
+      opacity: 0.7;
     }
   </style>
 </head>
@@ -118,8 +180,14 @@
       </div>
       <button type="submit">Upload</button>
     </form>
+
     <div class="spinner" id="spinner">
       <div class="spinner-border"></div>
+    </div>
+
+    <div class="history" id="history">
+      <h3>Recent Uploads</h3>
+      <ul id="historyList"></ul>
     </div>
   </div>
 
@@ -128,12 +196,69 @@
     const spinner = document.getElementById('spinner');
     const fileInput = document.getElementById('fileInput');
     const fileNameDisplay = document.getElementById('fileName');
+    const historyList = document.getElementById('historyList');
 
     fileInput.addEventListener('change', () => {
       fileNameDisplay.textContent = fileInput.files.length
         ? fileInput.files[0].name
         : 'No file selected';
     });
+
+    const getHistory = () => JSON.parse(localStorage.getItem('fileHistory') || '[]');
+
+    const saveHistory = (data) => {
+      localStorage.setItem('fileHistory', JSON.stringify(data.slice(0, 5)));
+    };
+
+    const downloadJSON = (content, filename) => {
+      const blob = new Blob([content], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    const loadHistory = () => {
+      historyList.innerHTML = '';
+      const history = getHistory();
+      history.forEach((entry, index) => {
+        const li = document.createElement('li');
+        const id = entry.id;
+        li.innerHTML = `
+          <div>
+            <strong>${entry.name}</strong><br />
+            <small>${new Date(entry.date).toLocaleString()}</small>
+          </div>
+          <div class="history-actions">
+            <a href="#" data-id="${id}" class="download-link">Download</a>
+            <button class="delete-btn" data-id="${id}" title="Delete">&times;</button>
+          </div>
+        `;
+        historyList.appendChild(li);
+      });
+
+      document.querySelectorAll('.download-link').forEach((link) => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const id = e.target.dataset.id;
+          const item = getHistory().find((h) => h.id === id);
+          if (item) {
+            downloadJSON(item.data, item.name.replace('.pdf', '.json'));
+          }
+        });
+      });
+
+      document.querySelectorAll('.delete-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.id;
+          const filtered = getHistory().filter((h) => h.id !== id);
+          saveHistory(filtered);
+          loadHistory();
+        });
+      });
+    };
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -142,32 +267,27 @@
       spinner.style.display = 'flex';
 
       try {
-        const res = await fetch(
-          'https://8f4b-2600-1700-e08-67b0-e0b3-69be-29ed-a7e5.ngrok-free.app/webhook-test/upload',
-          {
-            method: 'POST',
-            body: formData,
-          }
-        );
+        const res = await fetch('https://8f4b-2600-1700-e08-67b0-e0b3-69be-29ed-a7e5.ngrok-free.app/webhook/upload', {
+          method: 'POST',
+          body: formData,
+        });
 
-        if (!res.ok) {
-          throw new Error('Upload failed');
-        }
+        if (!res.ok) throw new Error('Upload failed');
 
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
+        const text = await res.text(); // Get raw text so we can store and parse
+        downloadJSON(text, 'form_data.json');
 
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'form_data.json';
-        a.click();
+        const history = getHistory();
+        const newEntry = {
+          id: crypto.randomUUID(),
+          name: fileInput.files[0].name,
+          date: new Date().toISOString(),
+          data: text,
+        };
 
-        // (Optional) Save filename in local storage
-        const history = JSON.parse(localStorage.getItem('fileHistory') || '[]');
-        history.unshift({ name: fileInput.files[0].name, date: new Date().toISOString() });
-        localStorage.setItem('fileHistory', JSON.stringify(history.slice(0, 5)));
-
-        window.URL.revokeObjectURL(url);
+        history.unshift(newEntry);
+        saveHistory(history);
+        loadHistory();
       } catch (err) {
         alert('❌ Error: ' + err.message);
       } finally {
@@ -176,6 +296,8 @@
         fileNameDisplay.textContent = 'No file selected';
       }
     });
+
+    loadHistory();
   </script>
 </body>
 </html>
