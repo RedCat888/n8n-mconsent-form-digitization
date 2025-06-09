@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Upload Form to n8n</title>
+</head>
+<body>
+  <h2>Upload a File to n8n</h2>
+  <form action="http://localhost:5678/webhook/upload" method="POST" enctype="multipart/form-data">
+    <input type="file" name="file" />
+    <button type="submit">Upload</button>
+  </form>
+</body>
+</html>
