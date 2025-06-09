@@ -21,17 +21,47 @@
       border-radius: 12px;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
       text-align: center;
-      width: 320px;
+      width: 340px;
     }
 
     h2 {
-      margin-bottom: 1rem;
-      font-size: 1.5rem;
+      margin-bottom: 1.5rem;
+      font-size: 1.4rem;
+      font-weight: 600;
       color: #333;
     }
 
+    .file-upload {
+      margin-bottom: 1.2rem;
+      position: relative;
+    }
+
     input[type="file"] {
-      margin-bottom: 1rem;
+      opacity: 0;
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      width: 100%;
+      cursor: pointer;
+    }
+
+    .custom-file-label {
+      display: inline-block;
+      background-color: #f0f0f0;
+      border: 2px dashed #aaa;
+      border-radius: 6px;
+      padding: 0.6rem 1rem;
+      width: 100%;
+      cursor: pointer;
+      color: #555;
+      font-size: 0.95rem;
+      transition: border 0.3s ease;
+    }
+
+    .custom-file-label:hover {
+      border-color: #007bff;
+      background-color: #f7faff;
     }
 
     button {
@@ -51,7 +81,8 @@
 
     .spinner {
       display: none;
-      margin: 1rem auto 0;
+      margin-top: 1.2rem;
+      justify-content: center;
     }
 
     .spinner-border {
@@ -68,14 +99,23 @@
         transform: rotate(360deg);
       }
     }
+
+    .file-name {
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: 0.4rem;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h2>Upload PDF → Get JSON</h2>
     <form id="uploadForm">
-      <input type="file" name="file" required />
-      <br />
+      <div class="file-upload">
+        <label class="custom-file-label" for="fileInput">Choose PDF file</label>
+        <input type="file" name="file" id="fileInput" required />
+        <div class="file-name" id="fileName">No file selected</div>
+      </div>
       <button type="submit">Upload</button>
     </form>
     <div class="spinner" id="spinner">
@@ -86,18 +126,29 @@
   <script>
     const form = document.getElementById('uploadForm');
     const spinner = document.getElementById('spinner');
+    const fileInput = document.getElementById('fileInput');
+    const fileNameDisplay = document.getElementById('fileName');
+
+    fileInput.addEventListener('change', () => {
+      fileNameDisplay.textContent = fileInput.files.length
+        ? fileInput.files[0].name
+        : 'No file selected';
+    });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
       const formData = new FormData(form);
-      spinner.style.display = 'block';
+      spinner.style.display = 'flex';
 
       try {
-        const res = await fetch('https://8f4b-2600-1700-e08-67b0-e0b3-69be-29ed-a7e5.ngrok-free.app/webhook-test/upload', {
-          method: 'POST',
-          body: formData,
-        });
+        const res = await fetch(
+          'https://8f4b-2600-1700-e08-67b0-e0b3-69be-29ed-a7e5.ngrok-free.app/webhook-test/upload',
+          {
+            method: 'POST',
+            body: formData,
+          }
+        );
 
         if (!res.ok) {
           throw new Error('Upload failed');
@@ -111,12 +162,18 @@
         a.download = 'form_data.json';
         a.click();
 
+        // (Optional) Save filename in local storage
+        const history = JSON.parse(localStorage.getItem('fileHistory') || '[]');
+        history.unshift({ name: fileInput.files[0].name, date: new Date().toISOString() });
+        localStorage.setItem('fileHistory', JSON.stringify(history.slice(0, 5)));
+
         window.URL.revokeObjectURL(url);
       } catch (err) {
         alert('❌ Error: ' + err.message);
       } finally {
         spinner.style.display = 'none';
         form.reset();
+        fileNameDisplay.textContent = 'No file selected';
       }
     });
   </script>
